@@ -3,6 +3,8 @@ from django.contrib.auth import authenticate
 
 from .models import User
 
+ABOUT_TEXTAREA_ROWS = 4
+
 
 class RegistrationForm(forms.ModelForm):
     password = forms.CharField(
@@ -62,5 +64,5 @@ class EditProfileForm(forms.ModelForm):
             'github_url': 'GitHub',
         }
         widgets = {
-            'about': forms.Textarea(attrs={'rows': 4}),
+            'about': forms.Textarea(attrs={'rows': ABOUT_TEXTAREA_ROWS}),
         }

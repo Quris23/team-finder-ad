@@ -1,16 +1,18 @@
-import uuid
-
-from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
+from django.contrib.auth.models import AbstractBaseUser, PermissionsMixin
 from django.db import models
 
+from .managers import UserManager
+from .utils import avatar_upload_path
 
-def avatar_upload_path(instance, filename):
-    ext = filename.rsplit('.', 1)[-1]
-    return f'avatars/avatar_{uuid.uuid4()}.{ext}'
+SKILL_NAME_MAX_LENGTH = 100
+USER_NAME_MAX_LENGTH = 100
+PHONE_MAX_LENGTH = 20
 
 
 class Skill(models.Model):
-    name = models.CharField(max_length=100, unique=True, verbose_name='Навык')
+    name = models.CharField(
+        max_length=SKILL_NAME_MAX_LENGTH, unique=True, verbose_name='Навык'
+    )
 
     class Meta:
         ordering = ['name']
@@ -21,29 +23,11 @@ class Skill(models.Model):
         return self.name
 
 
-class UserManager(BaseUserManager):
-    def create_user(self, email, password=None, **extra_fields):
-        if not email:
-            raise ValueError('Email обязателен')
-        email = self.normalize_email(email)
-        user = self.model(email=email, **extra_fields)
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(self, email, password=None, **extra_fields):
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('name', 'Admin')
-        extra_fields.setdefault('surname', 'Admin')
-        return self.create_user(email, password, **extra_fields)
-
-
 class User(AbstractBaseUser, PermissionsMixin):
-    name = models.CharField(max_length=100, verbose_name='Имя')
-    surname = models.CharField(max_length=100, verbose_name='Фамилия')
+    name = models.CharField(max_length=USER_NAME_MAX_LENGTH, verbose_name='Имя')
+    surname = models.CharField(max_length=USER_NAME_MAX_LENGTH, verbose_name='Фамилия')
     email = models.EmailField(unique=True, verbose_name='Email')
-    phone = models.CharField(max_length=20, blank=True, verbose_name='Телефон')
+    phone = models.CharField(max_length=PHONE_MAX_LENGTH, blank=True, verbose_name='Телефон')
     github_url = models.URLField(blank=True, verbose_name='GitHub')
     avatar = models.ImageField(
         upload_to=avatar_upload_path, blank=True, null=True, verbose_name='Аватар'

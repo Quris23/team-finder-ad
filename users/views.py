@@ -1,4 +1,5 @@
 import json
+from http import HTTPStatus
 
 from django.contrib.auth import login, logout, update_session_auth_hash
 from django.contrib.auth.decorators import login_required
@@ -9,6 +10,14 @@ from django.shortcuts import get_object_or_404, redirect, render
 
 from .forms import EditProfileForm, LoginForm, RegistrationForm
 from .models import Skill, User
+
+USERS_PER_PAGE = 12
+SKILLS_SEARCH_LIMIT = 10
+
+
+def paginate_queryset(request, queryset, per_page=USERS_PER_PAGE):
+    paginator = Paginator(queryset, per_page)
+    return paginator.get_page(request.GET.get('page'))
 
 
 def register_view(request):
@@ -33,7 +42,10 @@ def logout_view(request):
 
 
 def user_detail_view(request, user_id):
-    profile_user = get_object_or_404(User, pk=user_id)
+    profile_user = get_object_or_404(
+        User.objects.prefetch_related('skills'),
+        pk=user_id,
+    )
     return render(request, 'users/user-details.html', {'user': profile_user})
 
 
@@ -58,12 +70,11 @@ def change_password_view(request):
 
 def users_list_view(request):
     skill_name = request.GET.get('skill', '').strip()
-    qs = User.objects.filter(is_active=True)
+    qs = User.objects.filter(is_active=True).prefetch_related('skills')
     if skill_name:
         qs = qs.filter(skills__name=skill_name)
     all_skills = Skill.objects.all()
-    paginator = Paginator(qs, 12)
-    participants = paginator.get_page(request.GET.get('page'))
+    participants = paginate_queryset(request, qs)
     return render(request, 'users/participants.html', {
         'participants': participants,
         'all_skills': all_skills,
@@ -72,32 +83,37 @@ def users_list_view(request):
 
 
 def skills_search_view(request):
-    q = request.GET.get('q', '').strip()
-    if not q:
+    query = request.GET.get('q', '').strip()
+    if not query:
         return JsonResponse([], safe=False)
-    results = Skill.objects.filter(name__icontains=q)[:10]
-    return JsonResponse([{'id': s.id, 'name': s.name} for s in results], safe=False)
+    results = Skill.objects.filter(name__icontains=query)[:SKILLS_SEARCH_LIMIT]
+    return JsonResponse(
+        [{'id': skill.id, 'name': skill.name} for skill in results],
+        safe=False,
+    )
 
 
 @login_required
 def add_skill_view(request, user_id):
     if request.user.pk != user_id:
-        return JsonResponse({'error': 'Нет доступа'}, status=403)
+        return JsonResponse({'error': 'Нет доступа'}, status=HTTPStatus.FORBIDDEN)
 
     try:
         data = json.loads(request.body)
     except json.JSONDecodeError:
-        return JsonResponse({'error': 'Некорректный запрос'}, status=400)
+        return JsonResponse({'error': 'Некорректный запрос'}, status=HTTPStatus.BAD_REQUEST)
 
     skill_id = data.get('skill_id')
     name = data.get('name', '').strip()
 
     if skill_id:
-        skill = get_object_or_404(Skill, pk=skill_id)
+        skill = Skill.objects.filter(pk=skill_id).first()
+        if skill is None:
+            return JsonResponse({'error': 'Навык не найден'}, status=HTTPStatus.NOT_FOUND)
     elif name:
         skill, _ = Skill.objects.get_or_create(name=name)
     else:
-        return JsonResponse({'error': 'Не указан навык'}, status=400)
+        return JsonResponse({'error': 'Не указан навык'}, status=HTTPStatus.BAD_REQUEST)
 
     request.user.skills.add(skill)
     return JsonResponse({'id': skill.id, 'name': skill.name})
@@ -106,7 +122,9 @@ def add_skill_view(request, user_id):
 @login_required
 def remove_skill_view(request, user_id, skill_id):
     if request.user.pk != user_id:
-        return JsonResponse({'error': 'Нет доступа'}, status=403)
-    skill = get_object_or_404(Skill, pk=skill_id)
+        return JsonResponse({'error': 'Нет доступа'}, status=HTTPStatus.FORBIDDEN)
+    skill = Skill.objects.filter(pk=skill_id).first()
+    if skill is None:
+        return JsonResponse({'error': 'Навык не найден'}, status=HTTPStatus.NOT_FOUND)
     request.user.skills.remove(skill)
     return JsonResponse({'status': 'ok'})
