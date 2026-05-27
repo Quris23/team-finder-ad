@@ -1,17 +1,25 @@
 from django.conf import settings
 from django.db import models
 
+STATUS_OPEN = 'open'
+STATUS_CLOSED = 'closed'
+NAME_MAX_LENGTH = 200
+STATUS_MAX_LENGTH = 10
+
 
 class Project(models.Model):
     STATUS_CHOICES = [
-        ('open', 'Открыт'),
-        ('closed', 'Закрыт'),
+        (STATUS_OPEN, 'Открыт'),
+        (STATUS_CLOSED, 'Закрыт'),
     ]
 
-    name = models.CharField(max_length=200, verbose_name='Название')
+    name = models.CharField(max_length=NAME_MAX_LENGTH, verbose_name='Название')
     description = models.TextField(blank=True, verbose_name='Описание')
     status = models.CharField(
-        max_length=10, choices=STATUS_CHOICES, default='open', verbose_name='Статус'
+        max_length=STATUS_MAX_LENGTH,
+        choices=STATUS_CHOICES,
+        default=STATUS_OPEN,
+        verbose_name='Статус',
     )
     github_url = models.URLField(blank=True, verbose_name='GitHub репозиторий')
     owner = models.ForeignKey(
